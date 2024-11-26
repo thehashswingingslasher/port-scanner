@@ -1,132 +1,170 @@
-# Port Scanner with Service Version Detection
+# Port Scanning and OS Detection Script
 
-## Overview
+This Python script performs port scanning and OS detection for a given IP address or hostname. It utilizes `socket`, `scapy`, and `concurrent.futures` for multi-threaded scanning. The results are printed in colored output using the `termcolor` library.
 
-This Python script is designed to perform a network port scan on a specified target IP address or domain. It checks for open ports and attempts to retrieve the service version running on those ports. The script uses color-coded output to help quickly identify port status:
-- **Green:** Port is open and a service version was successfully detected.
-- **Red:** Port is closed.
+## Prerequisites
+Before running the script, make sure you have the required libraries installed:
 
-## Requirements
+```bash
+pip install termcolor scapy
+Here's the markdown for the Python script you provided:
 
-1. **Python 3.x** - Make sure you have Python 3 installed on your system.
-2. **`termcolor` library** - Used to color the output. You can install it using the following command:
-   ```bash
-   pip install termcolor
+```markdown
+# Port Scanning and OS Detection Script
 
-## How the Script Works
+This Python script performs port scanning and OS detection for a given IP address or hostname. It utilizes `socket`, `scapy`, and `concurrent.futures` for multi-threaded scanning. The results are printed in colored output using the `termcolor` library.
 
-1. **Input**: You need to specify the target IP address or domain and the ports to scan.
-   - You can input a single port number, a comma-separated list of port numbers, or a range of ports.
-2. **Output**: The script will output the status of each port:
-   - **Green** if the port is open and a service version is detected.
-   - **Red** if the port is closed.
-   - If the port is open, it will also display the service version (if detected).
+## Prerequisites
+Before running the script, make sure you have the required libraries installed:
 
-## Script Usage
+```bash
+pip install termcolor scapy
+```
+
+## Script Breakdown
+
+### Import Statements
+The script uses the following modules:
+- `socket`: For creating TCP connections to ports.
+- `termcolor`: For printing colored output to the terminal.
+- `scapy.all`: For sending and receiving ICMP packets to detect the operating system.
+- `concurrent.futures`: For running port scans concurrently using threads.
+
+### Functions
+
+#### `scan(ipaddress, port)`
+This function attempts to connect to a specified IP address and port, checks if the port is open, and attempts to retrieve the service version (if available).
+
+```python
+def scan(ipaddress, port):
+    print(f"Attempting to connect to {ipaddress}:{port}...")  # Debugging line
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)  # Increase timeout for slower connections
+        sock.connect((ipaddress, port))
+        print(f"Connected to {ipaddress}:{port}")  # Debugging line
+        
+        try:
+            service_version = sock.recv(1024).decode('utf-8').strip('\n')
+        except UnicodeDecodeError:
+            service_version = "Unknown Service"
+        
+        print(colored(f'Port {port} is open', 'green'), end=' ')
+        print(colored(f'({service_version})', 'yellow'))
+        sock.close()
+    except (ConnectionRefusedError, socket.timeout):
+        print(f"Failed to connect to {ipaddress}:{port}")  # Debugging line
+        pass  # Suppress output for closed ports
+```
+
+#### `detect_os(ipaddress)`
+This function detects the operating system of the target by sending an ICMP packet and analyzing the TTL (Time to Live) value of the response.
+
+```python
+def detect_os(ipaddress):
+    print(f"Detecting OS for {ipaddress}...")  # Debugging line
+    try:
+        response = sr1(IP(dst=ipaddress) / ICMP(), timeout=1, verbose=0)
+        if response:
+            ttl = response[IP].ttl
+            if ttl <= 64:
+                os_guess = "Linux/Unix"
+            elif ttl == 108:
+                os_guess = "Windows 2000"
+            elif ttl == 127:
+                os_guess = "Windows 9x/NT"
+            elif ttl == 128:
+                os_guess = "Windows"
+            elif ttl == 252:
+                os_guess = "Solaris"
+            else:
+                os_guess = "Unknown OS"
+
+            print(colored(f"[+] OS Detection: TTL={ttl}, Likely OS: {os_guess}", "cyan"))
+        else:
+            print(colored("[!] OS Detection failed. No response to ICMP request.", "red"))
+    except Exception as e:
+        print(colored(f"[!] OS Detection error: {str(e)}", "red"))
+```
+
+#### `port_scan(ipaddress, ports)`
+This function runs the `scan` function for each port in the given range using multiple threads to speed up the scanning process.
+
+```python
+def port_scan(ipaddress, ports):
+    print(colored(f"\nStarting scan on {ipaddress}...\n", "cyan"))
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        futures = [executor.submit(scan, ipaddress, port) for port in ports]
+        for future in as_completed(futures):
+            future.result()
+```
+
+#### `main()`
+The main function orchestrates the port scanning and OS detection. It prompts the user for the target IP/hostname and the ports to scan. The user can specify ports as a range (e.g., `1-1000`), a comma-separated list (e.g., `80,443`), or `all` to scan all ports.
+
+```python
+def main():
+    target = input('Target IP/Hostname: ').strip()
+    ports = input('Ports to scan (e.g., "80,443" or "1-1000" or "all"): ').strip()
+
+    if not target:
+        print(colored("Target IP/Hostname cannot be empty. Exiting.", "red"))
+        return
+
+    try:
+        ipaddress = socket.gethostbyname(target)
+    except socket.gaierror:
+        print(colored("Invalid hostname or IP address. Exiting.", "red"))
+        return
+
+    print(colored(f"\nResolving target: {target} -> {ipaddress}\n", "blue"))
+
+    detect_os(ipaddress)  # Perform OS detection
+
+    if ports.lower() == "all":
+        port_range = range(1, 65536)
+    elif '-' in ports:
+        start, end = map(int, ports.split('-'))
+        port_range = range(start, end + 1)
+    elif ',' in ports:
+        port_range = [int(port) for port in ports.split(',')]
+    else:
+        port_range = [int(ports)]
+
+    port_scan(ipaddress, port_range)
+```
 
 ### Running the Script
-
-Run the following command in your terminal:
+To run the script, execute it in your terminal:
 
 ```bash
-python port_scanner.py
+python3 port_scan.py
 ```
 
-### Input Options
+You will be prompted for the target IP/hostname and ports to scan.
 
-You will be prompted to enter:
-- **Target IP or domain** (e.g., `192.168.1.1`)
-- **Ports to scan**: This can be:
-  - A single port number (e.g., `80`).
-  - A comma-separated list of port numbers (e.g., `80,443,8080`).
-  - A range of ports (e.g., `20-80`).
+### Example Output
 
-### Example 1: Single Port Scan
-Prompt:
-```bash
-Target: 192.168.1.1
-Port: 80
 ```
-Output:
-```
-Port 80 is open    Apache/2.4.29 (Ubuntu)
-```
+Target IP/Hostname: 192.168.1.1
+Ports to scan (e.g., "80,443" or "1-1000" or "all"): 80,443
 
-### Example 2: Multiple Port Scan (Comma-separated list)
-Prompt:
-```bash
-Target: 192.168.1.1
-Port: 80,443,8080
-```
-Output:
-```
-Port 80 is open    Apache/2.4.29 (Ubuntu)
-Port 443 is closed
-Port 8080 is open    Jetty/9.4.31.v20200723
+Resolving target: 192.168.1.1 -> 192.168.1.1
+
+Detecting OS for 192.168.1.1...
+[+] OS Detection: TTL=64, Likely OS: Linux/Unix
+
+Starting scan on 192.168.1.1...
+
+Port 80 is open (Apache httpd 2.4.29)
+Port 443 is open (OpenSSL)
 ```
 
-### Example 3: Port Range Scan
-Prompt:
-```bash
-Target: 192.168.1.1
-Port: 20-80
-```
-Output:
-```
-Port 20 is closed
-Port 21 is open    vsftpd 3.0.3
-Port 22 is open    OpenSSH 7.6 (Ubuntu)
-Port 80 is open    Apache/2.4.29 (Ubuntu)
-```
+### Notes
+- The script uses multi-threading (`ThreadPoolExecutor`) to scan ports concurrently, which makes the scan faster.
+- The OS detection is based on TTL values from ICMP responses, which might not always be accurate.
+- You can modify the script to scan UDP ports or use more advanced scanning techniques if necessary.
 
-## Code Explanation
-
-Here’s a breakdown of the script (`port_scanner.py`):
-
-### Code:
-```python
-import socket
-from termcolor import colored
-
-def scan(ipaddress, port):
-    try:
-        # Create a socket object
-        sock = socket.socket()
-        sock.connect((ipaddress, port))
-        service_version = sock.recv(1024)
-        service_version = service_version.decode('utf-8').strip('\n')
-        port_state = f'Port {str(port)} is open'
-        print(colored(port_state, 'green'), end='    ')
-        print(service_version)
-        print(f'Port {str(port)} is open')
-    except ConnectionRefusedError:
-        print(colored(f'Port {str(port)} is closed', 'red'))
-    except UnicodeDecodeError:
-        print(colored(f'Port {str(port)} is open', 'green'))
-
-# Prompt the user for input
-target = input('Target: ')
-ports = input('Port: ')
-
-# Check if the ports input is a comma-separated list
-if ',' in ports:
-    port_list = ports.split(',')
-    for port in port_list:
-        scan(target, int(port))
-# Check if the ports input is a range
-elif '-' in ports:
-    port_range = ports.split('-')
-    start = int(port_range[0])
-    end = int(port_range[1])
-    for port in range(start, end + 1):
-        scan(target, port)
-# If neither, assume a single port number
-else:
-    scan(target, int(ports))
-```
-
-### Script Explanation:
-1. **`socket` library** is used to create a socket and attempt a connection to the specified IP and port.
-2. **`termcolor`** is used to format output messages with colors for readability.
-3. **`ConnectionRefusedError`** is caught if the connection attempt is refused.
-4. **`UnicodeDecodeError`** is caught if there's an issue decoding data received from the port (e.g., a simple "open" port with no detected service version).
+### Troubleshooting
+- If the script doesn't detect open ports, ensure there are no firewalls blocking the connections.
+- If you encounter permission issues with scanning low-numbered ports, run the script as root or with elevated privileges (e.g., `sudo` on Linux).
