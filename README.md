@@ -7,18 +7,6 @@ Before running the script, make sure you have the required libraries installed:
 
 ```bash
 pip install termcolor scapy
-Here's the markdown for the Python script you provided:
-
-```markdown
-# Port Scanning and OS Detection Script
-
-This Python script performs port scanning and OS detection for a given IP address or hostname. It utilizes `socket`, `scapy`, and `concurrent.futures` for multi-threaded scanning. The results are printed in colored output using the `termcolor` library.
-
-## Prerequisites
-Before running the script, make sure you have the required libraries installed:
-
-```bash
-pip install termcolor scapy
 ```
 
 ## Script Breakdown
