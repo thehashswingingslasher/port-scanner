@@ -12,24 +12,6 @@ This Python script is designed to perform a network port scan on a specified tar
 2. **`termcolor` library** - Used to color the output. You can install it using the following command:
    ```bash
    pip install termcolor
-Here’s a full markdown file for your port scanner script with detailed explanations and usage instructions:
-
-```markdown
-# Port Scanner with Service Version Detection
-
-## Overview
-
-This Python script is designed to perform a network port scan on a specified target IP address or domain. It checks for open ports and attempts to retrieve the service version running on those ports. The script uses color-coded output to help quickly identify port status:
-- **Green:** Port is open and a service version was successfully detected.
-- **Red:** Port is closed.
-
-## Requirements
-
-1. **Python 3.x** - Make sure you have Python 3 installed on your system.
-2. **`termcolor` library** - Used to color the output. You can install it using the following command:
-   ```bash
-   pip install termcolor
-   ```
 
 ## How the Script Works
 
